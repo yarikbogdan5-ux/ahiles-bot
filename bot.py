@@ -1,13 +1,16 @@
 import asyncio
 import re
 import sqlite3
+import os
 from datetime import datetime
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart, StateFilter
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-import os
+
+# ========== ОТКЛЮЧАЕМ ПРОВЕРКУ ПОРТОВ ДЛЯ RENDER ==========
+os.environ["RENDER_NO_PORT_CHECK"] = "true"
 
 # ========== КОНФИГ ==========
 TOKEN = "8875140720:AAH3qzwBAJ7E7rpl9Zs0tuinSXzYdp-hl5Q"
@@ -61,15 +64,6 @@ def init_db():
             user_id INTEGER PRIMARY KEY,
             reason TEXT,
             blocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS admin_chat (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            message TEXT NOT NULL,
-            reply TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     conn.commit()
@@ -195,8 +189,6 @@ class AdminStates(StatesGroup):
     waiting_block_user_id = State()
     waiting_unblock_user_id = State()
     waiting_admin_reply = State()
-    waiting_revive_nick = State()
-    waiting_admin_message = State()
 
 # ========== КЛАВИАТУРЫ ==========
 def get_main_menu():
@@ -320,7 +312,7 @@ async def start_wl(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.edit_text("📝 **Анкета в Вайт-лист**\n\nНапиши своё **имя**:")
     await state.set_state(WLForm.waiting_for_name)
 
-@dp.message(WLForm.waiting_for_name)
+@dp.message(StateFilter(WLForm.waiting_for_name))
 async def process_name(message: types.Message, state: FSMContext):
     if is_blocked(message.from_user.id):
         await message.answer("❌ Вы заблокированы!")
@@ -333,7 +325,7 @@ async def process_name(message: types.Message, state: FSMContext):
     await message.answer("📅 Напиши свой **возраст** (только число):")
     await state.set_state(WLForm.waiting_for_age)
 
-@dp.message(WLForm.waiting_for_age)
+@dp.message(StateFilter(WLForm.waiting_for_age))
 async def process_age(message: types.Message, state: FSMContext):
     if is_blocked(message.from_user.id):
         await message.answer("❌ Вы заблокированы!")
@@ -351,7 +343,7 @@ async def process_age(message: types.Message, state: FSMContext):
     except ValueError:
         await message.answer("❌ Напиши число!")
 
-@dp.message(WLForm.waiting_for_nickname)
+@dp.message(StateFilter(WLForm.waiting_for_nickname))
 async def process_wl_nickname(message: types.Message, state: FSMContext):
     if is_blocked(message.from_user.id):
         await message.answer("❌ Вы заблокированы!")
@@ -365,7 +357,7 @@ async def process_wl_nickname(message: types.Message, state: FSMContext):
     await message.answer("📢 Откуда узнал о сервере? (TikTok, YouTube, от друга, реклама)")
     await state.set_state(WLForm.waiting_for_source)
 
-@dp.message(WLForm.waiting_for_source)
+@dp.message(StateFilter(WLForm.waiting_for_source))
 async def process_source(message: types.Message, state: FSMContext):
     if is_blocked(message.from_user.id):
         await message.answer("❌ Вы заблокированы!")
@@ -382,7 +374,7 @@ async def process_source(message: types.Message, state: FSMContext):
         await message.answer("🎯 Чем планируешь заниматься на сервере?")
         await state.set_state(WLForm.waiting_for_plans)
 
-@dp.message(WLForm.waiting_for_friend_nick)
+@dp.message(StateFilter(WLForm.waiting_for_friend_nick))
 async def process_friend(message: types.Message, state: FSMContext):
     if is_blocked(message.from_user.id):
         await message.answer("❌ Вы заблокированы!")
@@ -392,7 +384,7 @@ async def process_friend(message: types.Message, state: FSMContext):
     await message.answer("🎯 Чем планируешь заниматься на сервере?")
     await state.set_state(WLForm.waiting_for_plans)
 
-@dp.message(WLForm.waiting_for_plans)
+@dp.message(StateFilter(WLForm.waiting_for_plans))
 async def process_plans(message: types.Message, state: FSMContext):
     if is_blocked(message.from_user.id):
         await message.answer("❌ Вы заблокированы!")
@@ -430,7 +422,7 @@ async def ask_revive_nick(callback: types.CallbackQuery, state: FSMContext):
     )
     await state.set_state(ReviveForm.waiting_for_nickname)
 
-@dp.message(ReviveForm.waiting_for_nickname)
+@dp.message(StateFilter(ReviveForm.waiting_for_nickname))
 async def process_revive_nick(message: types.Message, state: FSMContext):
     if is_blocked(message.from_user.id):
         await message.answer("❌ Вы заблокированы!")
@@ -472,7 +464,7 @@ async def chat_admin(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.edit_text("💬 Напиши сообщение админу:")
     await state.set_state(SupportForm.waiting_for_message)
 
-@dp.message(SupportForm.waiting_for_message)
+@dp.message(StateFilter(SupportForm.waiting_for_message))
 async def process_support_message(message: types.Message, state: FSMContext):
     if is_blocked(message.from_user.id):
         await message.answer("❌ Вы заблокированы!")
@@ -549,7 +541,7 @@ async def admin_block(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.edit_text("🔒 Введи ID игрока и причину через пробел:\nПример: `8935740667 Спам`")
     await state.set_state(AdminStates.waiting_block_user_id)
 
-@dp.message(AdminStates.waiting_block_user_id)
+@dp.message(StateFilter(AdminStates.waiting_block_user_id))
 async def process_block_user(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
         return
@@ -577,7 +569,7 @@ async def admin_unblock(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.edit_text("🔓 Введи ID игрока для разблокировки:")
     await state.set_state(AdminStates.waiting_unblock_user_id)
 
-@dp.message(AdminStates.waiting_unblock_user_id)
+@dp.message(StateFilter(AdminStates.waiting_unblock_user_id))
 async def process_unblock_user(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
         return
@@ -595,7 +587,7 @@ async def admin_broadcast(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.edit_text("📢 Введи текст рассылки:")
     await state.set_state(AdminStates.waiting_broadcast_message)
 
-@dp.message(AdminStates.waiting_broadcast_message)
+@dp.message(StateFilter(AdminStates.waiting_broadcast_message))
 async def process_broadcast(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
         return
@@ -665,7 +657,7 @@ async def reply_to_user(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.answer(f"💬 Введи ответ для игрока:")
     await state.set_state(AdminStates.waiting_admin_reply)
 
-@dp.message(AdminStates.waiting_admin_reply)
+@dp.message(StateFilter(AdminStates.waiting_admin_reply))
 async def process_admin_reply(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
         return
